@@ -1,8 +1,12 @@
 package school.sptech;
 
+import org.springframework.jdbc.core.JdbcTemplate;
+
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 
@@ -12,6 +16,10 @@ public class Main {
     }
 
     public static void exibeCsv(String nomeArq) {
+        Conecction connection = new Conecction();
+        JdbcTemplate con = new JdbcTemplate(connection.getDataSource());
+
+
         FileReader arq = null;
         Scanner entrada = null;
         Boolean erroGravar = false;
@@ -43,8 +51,9 @@ public class Main {
                     for (int i = 0; i < campos.length; i++) {
                         campos[i] = campos[i].replaceAll("[^a-zA-Z0-9]", "");
                     }
-                    System.out.printf("%-25s %-10s %-10s %-10s %-10s %-10s %-15s %-15s %-10s\n",
-                            campos[0], campos[1], campos[2], campos[3], campos[4], campos[5], campos[6], campos[7], campos[8]);
+                    System.out.printf("%-25s %-10s %-10s %-10s %-10s %-10s %-15s %-15s %-20s %-20s %-10s\n",
+                            campos[0], campos[1], campos[2], campos[3], campos[4], campos[5],
+                            campos[6], campos[7], "empresa", "setor", campos[8]);
                     cabecalho = false;
                 } else {
                     String timestamp = campos[0].replaceAll("\"", "");
@@ -55,10 +64,35 @@ public class Main {
                     Double discoUsado = Double.parseDouble(campos[5]);
                     Integer numProcessos = Integer.parseInt(campos[6]);
                     String codigoMaquina = campos[7].replaceAll("\"", "");
-                    String top5Processos = campos[8];  // JSON inteiro, sem alteração
+                    String top5Processos = campos[8];// JSON inteiro, sem alteração
+                    
+                    String nomeEmpresa = "";
+                    String nomeSetor = "";
 
-                    System.out.printf("%-25s %-10.2f %-10.2f %-10.2f %-10.2f %-10.2f %-15d %-15s %-10s\n",
-                            timestamp, cpu, ramTotal, ramUsada, discoTotal, discoUsado, numProcessos, codigoMaquina, top5Processos);
+                    String sql = """
+                    SELECT e.nome AS nome_empresa, s.nome AS nome_setor
+                    FROM controlador c
+                    JOIN empresa e ON c.fk_empresa = e.id_empresa
+                    JOIN setor s ON c.fk_setor = s.id_setor AND c.fk_empresa = s.fk_empresa
+                    WHERE c.numero_serial = ?;
+                    """;
+
+                    List<Map<String, Object>> resultadoBanco = con.queryForList(sql, codigoMaquina);
+
+                    if (!resultadoBanco.isEmpty()) {
+                        Map<String, Object> linhaBanco = resultadoBanco.get(0);
+                        nomeEmpresa = linhaBanco.get("nome_empresa").toString();
+                        nomeSetor = linhaBanco.get("nome_setor").toString();
+                    } else {
+                        nomeEmpresa = "N/A";
+                        nomeSetor = "N/A";
+                    }
+
+                    System.out.printf(
+                            "%-25s %-10.2f %-10.2f %-10.2f %-10.2f %-10.2f %-15d %-15s %-20s %-20s %-10s\n",
+                            timestamp, cpu, ramTotal, ramUsada, discoTotal, discoUsado, numProcessos,
+                            codigoMaquina, nomeEmpresa, nomeSetor, top5Processos
+                    );
                 }
             }
         }
