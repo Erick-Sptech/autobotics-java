@@ -2,15 +2,17 @@ package school.sptech;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class Main {
     public static void main(String[] args) {
         List<Captura> listaCaptura = leCsv("dados_hardware");
         exibeListaCapturas(listaCaptura);
+        criaCsv(listaCaptura, "trusted_csv");
     }
 
     public static List<Captura> leCsv(String nomeArq) {
@@ -18,8 +20,9 @@ public class Main {
         JdbcTemplate con = new JdbcTemplate(connection.getDataSource());
         List<Captura> listaCaptura = new ArrayList<>();
         Captura captura;
+        String urlCsv = "https://s3-bucket-java-teste.s3.amazonaws.com/dados_hardware.csv";
 
-        FileReader arq = null;
+        InputStream arq = null;
         Scanner entrada = null;
         Boolean erroGravar = false;
         nomeArq += ".csv";
@@ -27,12 +30,14 @@ public class Main {
         try {
             System.out.println("Diretório atual: " + System.getProperty("user.dir"));
             System.out.println("Arquivo a ser aberto: " + nomeArq);
-            arq = new FileReader("etl_autobotics/" + nomeArq);
+            URL url = new URL(urlCsv);
+            arq = url.openStream();
 
             entrada = new Scanner(arq).useDelimiter(",|\\n");
         }
-        catch (FileNotFoundException erro) {
-            System.out.println("Arquivo inexistente!");
+        catch (IOException erro) {
+            System.out.println("Erro na URL Bucket");
+            erro.printStackTrace();
             System.exit(1);
         }
 
@@ -136,6 +141,46 @@ public class Main {
                             c.getTimestamp(), c.getCpu(), c.getRamTotal(), c.getRamUsada(), c.getDiscoTotal(), c.getDiscoUsado(), c.getNumProcessos(),
                             c.getCodigoMaquina(), c.getEmpresa(), c.getSetor(), c.getTop5Processos()
                     );
+        }
+    }
+
+    public static void criaCsv(List<Captura> lista, String nomeArq) {
+        OutputStreamWriter saida = null;
+        Boolean erroGravar = false;
+        nomeArq += ".csv";
+
+        try {
+            saida = new OutputStreamWriter(new FileOutputStream(nomeArq), StandardCharsets.UTF_8);
+        }
+        catch (FileNotFoundException erro) {
+            System.out.println("Erro ao criar arquivo CSV");
+            erro.printStackTrace();
+            System.exit(1);
+        }
+        try {
+            saida.append("timestamp;cpu;ramTotal;ramUsada;discoTotal;discoUsado;numProcessos;codigoMaquina;empresa;setor;top5Processos");
+            for (Captura c : lista) {
+                saida.write(String.format("%s %f %f %f %f %f %d %s %s %s %s\n",
+                        c.getTimestamp(), c.getCpu(), c.getRamTotal(), c.getRamUsada(), c.getDiscoTotal(), c.getDiscoUsado(), c.getNumProcessos(),
+                        c.getCodigoMaquina(), c.getEmpresa(), c.getSetor(), c.getTop5Processos()));
+            }
+        }
+        catch (IOException erro) {
+            System.out.println("Erro ao adicionar dados no CSV");
+            erro.printStackTrace();
+            erroGravar = true;
+        }
+        finally {
+            try {
+                saida.close();
+            }
+            catch (IOException erro) {
+                System.out.println("Erro ao fechar");
+                erroGravar = true;
+            }
+            if (erroGravar) {
+                System.exit(1);
+            }
         }
     }
 
