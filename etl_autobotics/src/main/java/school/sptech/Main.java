@@ -5,20 +5,19 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Scanner;
+import java.util.*;
 
 public class Main {
     public static void main(String[] args) {
-        exibeCsv("dados_hardware");
+        List<Captura> listaCaptura = leCsv("dados_hardware");
+        exibeListaCapturas(listaCaptura);
     }
 
-    public static void exibeCsv(String nomeArq) {
+    public static List<Captura> leCsv(String nomeArq) {
         Conecction connection = new Conecction();
         JdbcTemplate con = new JdbcTemplate(connection.getDataSource());
-
+        List<Captura> listaCaptura = new ArrayList<>();
+        Captura captura;
 
         FileReader arq = null;
         Scanner entrada = null;
@@ -26,7 +25,9 @@ public class Main {
         nomeArq += ".csv";
 
         try {
-            arq = new FileReader(nomeArq);
+            System.out.println("Diretório atual: " + System.getProperty("user.dir"));
+            System.out.println("Arquivo a ser aberto: " + nomeArq);
+            arq = new FileReader("etl_autobotics/" + nomeArq);
 
             entrada = new Scanner(arq).useDelimiter(",|\\n");
         }
@@ -51,9 +52,9 @@ public class Main {
                     for (int i = 0; i < campos.length; i++) {
                         campos[i] = campos[i].replaceAll("[^a-zA-Z0-9]", "");
                     }
-                    System.out.printf("%-25s %-10s %-10s %-10s %-10s %-10s %-15s %-15s %-20s %-20s %-10s\n",
-                            campos[0], campos[1], campos[2], campos[3], campos[4], campos[5],
-                            campos[6], campos[7], "empresa", "setor", campos[8]);
+//                    System.out.printf("%-25s %-10s %-10s %-10s %-10s %-10s %-15s %-15s %-20s %-20s %-10s\n",
+//                            campos[0], campos[1], campos[2], campos[3], campos[4], campos[5],
+//                            campos[6], campos[7], "empresa", "setor", campos[8]);
                     cabecalho = false;
                 } else {
                     String timestamp = campos[0].replaceAll("\"", "");
@@ -64,7 +65,7 @@ public class Main {
                     Double discoUsado = Double.parseDouble(campos[5]);
                     Integer numProcessos = Integer.parseInt(campos[6]);
                     String codigoMaquina = campos[7].replaceAll("\"", "");
-                    String top5Processos = campos[8];// JSON inteiro, sem alteração
+                    String top5Processos = campos[8];
                     
                     String nomeEmpresa = "";
                     String nomeSetor = "";
@@ -88,11 +89,14 @@ public class Main {
                         nomeSetor = "N/A";
                     }
 
-                    System.out.printf(
-                            "%-25s %-10.2f %-10.2f %-10.2f %-10.2f %-10.2f %-15d %-15s %-20s %-20s %-10s\n",
-                            timestamp, cpu, ramTotal, ramUsada, discoTotal, discoUsado, numProcessos,
-                            codigoMaquina, nomeEmpresa, nomeSetor, top5Processos
-                    );
+                    captura = new Captura(timestamp, cpu, ramTotal, ramUsada, discoTotal, discoUsado, numProcessos, codigoMaquina, nomeEmpresa, nomeSetor, top5Processos);
+                    listaCaptura.add(captura);
+
+//                    System.out.printf(
+//                            "%-25s %-10.2f %-10.2f %-10.2f %-10.2f %-10.2f %-15d %-15s %-20s %-20s %-10s\n",
+//                            timestamp, cpu, ramTotal, ramUsada, discoTotal, discoUsado, numProcessos,
+//                            codigoMaquina, nomeEmpresa, nomeSetor, top5Processos
+//                    );
                 }
             }
         }
@@ -119,5 +123,23 @@ public class Main {
                 System.exit(1);
             }
         }
+        return listaCaptura;
+    }
+
+    public static void exibeListaCapturas(List<Captura> lista) {
+        System.out.printf("%-25s %-10s %-10s %-10s %-10s %-10s %-15s %-15s %-20s %-20s %-10s\n",
+                            "timestamp", "cpu", "ramTotal", "ramUsada", "discoTotal", "discoUsado",
+                            "numProcessos", "codigoMaquina", "empresa", "setor", "top5Processos");
+        for (Captura c : lista) {
+            System.out.printf(
+                            "%-25s %-10.2f %-10.2f %-10.2f %-10.2f %-10.2f %-15d %-15s %-20s %-20s %-10s\n",
+                            c.getTimestamp(), c.getCpu(), c.getRamTotal(), c.getRamUsada(), c.getDiscoTotal(), c.getDiscoUsado(), c.getNumProcessos(),
+                            c.getCodigoMaquina(), c.getEmpresa(), c.getSetor(), c.getTop5Processos()
+                    );
+        }
+    }
+
+    public static void enviaCsvParaBucket(String nomeArq){
+
     }
 }
