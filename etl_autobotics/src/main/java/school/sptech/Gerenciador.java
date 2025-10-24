@@ -1,0 +1,214 @@
+package school.sptech;
+
+import org.springframework.jdbc.core.JdbcTemplate;
+
+import java.awt.color.ProfileDataException;
+import java.io.*;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+
+import java.nio.file.Paths;
+
+public class Gerenciador {
+    public Gerenciador() {
+
+    }
+
+    public static List<Captura> leCsv(String nomeArq, String urlCsv) {
+        Conecction connection = new Conecction();
+        JdbcTemplate con = new JdbcTemplate(connection.getDataSource());
+        List<Captura> listaCaptura = new ArrayList<>();
+        Captura captura;
+
+        InputStream arq = null;
+        Scanner entrada = null;
+        Boolean erroGravar = false;
+        nomeArq += ".csv";
+
+        try {
+            System.out.println("Arquivo a ser aberto: " + nomeArq);
+            // cria um objeto URL do CSV no Bucket
+            URL url = new URL(urlCsv);
+            // openStream faz requisicao HTTPS e retorna um InputStream
+            arq = url.openStream();
+
+            entrada = new Scanner(arq).useDelimiter(",|\\n");
+        }
+        catch (IOException erro) {
+            System.out.println("Erro na URL Bucket");
+            erro.printStackTrace();
+            System.exit(1);
+        }
+
+        try {
+            Boolean cabecalho = true;
+            while (entrada.hasNextLine()) {
+                // le a linha inteira do csv
+                String linha = entrada.nextLine();
+                // divide essa linha em vários campos usando a virgula
+                // campos: 0 - timestamp, 1 - cpu, 2 - ramTotal, 3 - ramUsada, 4 - discoTotal, 5 - discoUsado
+                // 6 - numProcessos, 7 - codigoMaquina, 8 - top5Processos (sendo tratado como uma String inteira)
+
+                String[] campos = linha.split(",", 9);
+
+                if (cabecalho) {
+
+                    for (int i = 0; i < campos.length; i++) {
+                        campos[i] = campos[i].replaceAll("[^a-zA-Z0-9]", "");
+                    }
+//                    System.out.printf("%-25s %-10s %-10s %-10s %-10s %-10s %-15s %-15s %-20s %-20s %-10s\n",
+//                            campos[0], campos[1], campos[2], campos[3], campos[4], campos[5],
+//                            campos[6], campos[7], "empresa", "setor", campos[8]);
+                    cabecalho = false;
+                } else {
+                    String timestamp = campos[0].replaceAll("\"", "");
+                    Double cpu = Double.parseDouble(campos[1]);
+                    Double ramTotal = Double.parseDouble(campos[2]);
+                    Double ramUsada = Double.parseDouble(campos[3]);
+                    Double discoTotal = Double.parseDouble(campos[4]);
+                    Double discoUsado = Double.parseDouble(campos[5]);
+                    Integer numProcessos = Integer.parseInt(campos[6]);
+                    String codigoMaquina = campos[7].replaceAll("\"", "");
+                    String top5Processos = campos[8];
+
+                    String nomeEmpresa = "";
+                    String nomeSetor = "";
+
+                    String sql = """
+                    SELECT e.nome AS nome_empresa, s.nome AS nome_setor
+                    FROM controlador c
+                    JOIN empresa e ON c.fk_empresa = e.id_empresa
+                    JOIN setor s ON c.fk_setor = s.id_setor AND c.fk_empresa = s.fk_empresa
+                    WHERE c.numero_serial = ?;
+                    """;
+
+                    List<Map<String, Object>> resultadoBanco = con.queryForList(sql, codigoMaquina);
+
+                    if (!resultadoBanco.isEmpty()) {
+                        Map<String, Object> linhaBanco = resultadoBanco.get(0);
+                        nomeEmpresa = linhaBanco.get("nome_empresa").toString();
+                        nomeSetor = linhaBanco.get("nome_setor").toString();
+                    } else {
+                        nomeEmpresa = "N/A";
+                        nomeSetor = "N/A";
+                    }
+
+                    captura = new Captura(timestamp, cpu, ramTotal, ramUsada, discoTotal, discoUsado, numProcessos, codigoMaquina, nomeEmpresa, nomeSetor, top5Processos);
+                    listaCaptura.add(captura);
+
+//                    System.out.printf(
+//                            "%-25s %-10.2f %-10.2f %-10.2f %-10.2f %-10.2f %-15d %-15s %-20s %-20s %-10s\n",
+//                            timestamp, cpu, ramTotal, ramUsada, discoTotal, discoUsado, numProcessos,
+//                            codigoMaquina, nomeEmpresa, nomeSetor, top5Processos
+//                    );
+                }
+            }
+        }
+        catch (NoSuchElementException erro) {
+            System.out.println("Arquivo com problemas!");
+            erro.printStackTrace();
+            erroGravar = true;
+        }
+        catch (IllegalStateException erro) {
+            System.out.println("Erro na leitura do arquivo!");
+            erro.printStackTrace();
+            erroGravar = true;
+        }
+        finally {
+            try {
+                entrada.close();
+                arq.close();
+            }
+            catch (IOException erro) {
+                System.out.println("Erro ao fechar o arquivo");
+                erroGravar = true;
+            }
+            if (erroGravar) {
+                System.exit(1);
+            }
+        }
+        return listaCaptura;
+    }
+
+    public static void exibeListaCapturas(List<Captura> lista) {
+        System.out.printf("%-25s %-10s %-10s %-10s %-10s %-10s %-15s %-15s %-20s %-20s %-10s\n",
+                "timestamp", "cpu", "ramTotal", "ramUsada", "discoTotal", "discoUsado",
+                "numProcessos", "codigoMaquina", "empresa", "setor", "top5Processos");
+        for (Captura c : lista) {
+            System.out.printf(
+                    "%-25s %-10.2f %-10.2f %-10.2f %-10.2f %-10.2f %-15d %-15s %-20s %-20s %-10s\n",
+                    c.getTimestamp(), c.getCpu(), c.getRamTotal(), c.getRamUsada(), c.getDiscoTotal(), c.getDiscoUsado(), c.getNumProcessos(),
+                    c.getCodigoMaquina(), c.getEmpresa(), c.getSetor(), c.getTop5Processos()
+            );
+        }
+    }
+
+    public static void criaCsv(List<Captura> lista, String nomeArq) {
+        OutputStreamWriter saida = null;
+        Boolean erroGravar = false;
+        nomeArq += ".csv";
+
+        try {
+            saida = new OutputStreamWriter(new FileOutputStream(nomeArq), StandardCharsets.UTF_8);
+        }
+        catch (FileNotFoundException erro) {
+            System.out.println("Erro ao criar arquivo CSV");
+            erro.printStackTrace();
+            System.exit(1);
+        }
+        try {
+            saida.append("timestamp;cpu;ramTotal;ramUsada;discoTotal;discoUsado;numProcessos;codigoMaquina;empresa;setor;top5Processos");
+            for (Captura c : lista) {
+                saida.write(String.format("%s %f %f %f %f %f %d %s %s %s %s\n",
+                        c.getTimestamp(), c.getCpu(), c.getRamTotal(), c.getRamUsada(), c.getDiscoTotal(), c.getDiscoUsado(), c.getNumProcessos(),
+                        c.getCodigoMaquina(), c.getEmpresa(), c.getSetor(), c.getTop5Processos()));
+            }
+        }
+        catch (IOException erro) {
+            System.out.println("Erro ao adicionar dados no CSV");
+            erro.printStackTrace();
+            erroGravar = true;
+        }
+        finally {
+            try {
+                saida.close();
+            }
+            catch (IOException erro) {
+                System.out.println("Erro ao fechar");
+                erroGravar = true;
+            }
+            if (erroGravar) {
+                System.exit(1);
+            }
+        }
+    }
+    public static void enviaCsvParaBucket(String nomeArq, String nomeBucket){
+        nomeArq += ".csv";
+        System.out.println("Enviando '" + nomeArq + "' para o Bucket '" + nomeBucket + "'...");
+        try {
+            // puxa as credencias setadas no 'aws configure'
+            ProfileCredentialsProvider credenciais = ProfileCredentialsProvider.create();
+            credenciais.resolveCredentials();
+
+            // cria um cliente S3 que sera usado para fazer as acoes no bucket
+            S3Client s3 = S3Client.builder().region(Region.US_EAST_1).credentialsProvider(credenciais).build();
+
+            // cria uma requisicao para adicionar um novo objeto num Bucket S3
+            PutObjectRequest requisicao = PutObjectRequest.builder().bucket(nomeBucket).key("trusted_dados_hardware.csv").build();
+            s3.putObject(requisicao, Paths.get(nomeArq));
+            System.out.println("Upload concluído.");
+        }
+        catch (AwsServiceException erro) {
+            System.out.println("Erro ao conectar nos serviços AWS.");
+            System.out.println(erro.awsErrorDetails());
+            System.exit(1);
+        }
+    }
+}
