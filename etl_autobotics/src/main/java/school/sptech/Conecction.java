@@ -10,7 +10,7 @@ public class Conecction {
 
         dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
         dataSource.setUrl("jdbc:mysql://localhost:3306/autobotics");
-        dataSource.setUsername("Aluno");
+        dataSource.setUsername("aluno");
         dataSource.setPassword("sptech");
 
     }

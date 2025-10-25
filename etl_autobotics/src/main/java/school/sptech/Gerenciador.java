@@ -12,10 +12,7 @@ import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
-import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.services.s3.model.*;
 
 import java.nio.file.Paths;
 
@@ -24,48 +21,39 @@ public class Gerenciador {
 
     }
 
+    // RAW
+    private static String buscarUltimoCsv(String nomeBucket) {
+        // cria cliente s3 para requisitar a lista de objetos do bucket
+        S3Client s3 = S3Client.builder().region(Region.US_EAST_1).build();
 
+        // cria objetos request e response para buscar aws
+        ListObjectsV2Request requisicao = ListObjectsV2Request.builder().bucket(nomeBucket).build();
+        ListObjectsV2Response resultado = s3.listObjectsV2(requisicao);
 
-    public static String buscarUltimoCsv(String nomeBucket) {
-        ProfileCredentialsProvider credenciais = ProfileCredentialsProvider.create();
-        credenciais.resolveCredentials();
-        String nomeArquivo = "";
+//        for (S3Object objetos : resultado.contents()) {
+//            System.out.println(objetos.key());
+//        }
 
-        S3Client s3 = S3Client.builder()
-                .region(Region.US_EAST_1)
-                .credentialsProvider(credenciais)
-                .build();
-
-        ListObjectsRequest listObjectsRequest = ListObjectsRequest.builder()
-                .bucket(nomeBucket)
-                .build();
-
-        try {
-            ListObjectsResponse resposta = s3.listObjects(listObjectsRequest);
-
-            Optional<S3Object> ultimoCsv = resposta.contents().stream()
-                    .filter(obj -> obj.key().endsWith(".csv"))
-                    .max(Comparator.comparing(S3Object::lastModified));
-
-            if (ultimoCsv.isPresent()) {
-                S3Object arquivo = ultimoCsv.get();
-                nomeArquivo = Paths.get(arquivo.key()).getFileName().toString();
-                System.out.println("Último CSV encontrado:");
-                System.out.println("Nome: " + nomeArquivo);
-                System.out.println("Modificado em: " + arquivo.lastModified());
-            } else {
-                System.out.println("Nenhum arquivo CSV encontrado no bucket.");
-            }
-
-        } catch (AwsServiceException e) {
-            System.out.println("Erro ao listar objetos no bucket: " + e.awsErrorDetails().errorMessage());
-        }
-
-        return nomeArquivo;
+        return  resultado.contents().get(resultado.contents().size()-1).key();
     }
 
-    public static List<Captura> leCsv() {
-        String nomeArq = buscarUltimoCsv("raw-1d4a3f130793f4b0dfc576791dd86b34");
+    private static String buscarUrlBucket(String nomeBucket, String nomeRegiao) {
+        return String.format("https://%s.s3.%s.amazonaws.com", nomeBucket, nomeRegiao);
+    }
+
+    public static List<Captura> tratarDados(List<Captura> listaAntiga) {
+        List<Captura> listaNova = new ArrayList<>();
+        for (Captura c : listaAntiga) {
+            c.setRamTotal((c.getRamTotal() / Math.pow(1024.0, 3.0)));
+            c.setDiscoTotal((c.getDiscoTotal() / Math.pow(1024.0, 3.0)));
+            listaNova.add(c);
+        }
+        return listaNova;
+    }
+
+    public static List<Captura> leCsv(String nomeBucket) {
+        String nomeArq = buscarUltimoCsv(nomeBucket);
+        String urlBucket = buscarUrlBucket(nomeBucket, "us-east-1");
         Conecction connection = new Conecction();
         JdbcTemplate con = new JdbcTemplate(connection.getDataSource());
         List<Captura> listaCaptura = new ArrayList<>();
@@ -77,8 +65,9 @@ public class Gerenciador {
 
         try {
             System.out.println("Arquivo a ser aberto: " + nomeArq);
+            System.out.println("Link do csv: " + urlBucket+"/"+nomeArq);
             // cria um objeto URL do CSV no Bucket
-            URL url = new URL("https://raw-1d4a3f130793f4b0dfc576791dd86b34.s3.us-east-1.amazonaws.com/telemetria/"+nomeArq);
+            URL url = new URL(urlBucket+"/"+nomeArq);
             // openStream faz requisicao HTTPS e retorna um InputStream
             arq = url.openStream();
 
@@ -95,7 +84,6 @@ public class Gerenciador {
             while (entrada.hasNextLine()) {
                 // le a linha inteira do csv
                 String linha = entrada.nextLine();
-                System.out.println(linha);
                 // divide essa linha em vários campos usando a virgula
                 // campos: 0 - timestamp, 1 - cpu, 2 - ramTotal, 3 - ramUsada, 4 - discoTotal, 5 - discoUsado
                 // 6 - numProcessos, 7 - codigoMaquina, 8 - top5Processos (sendo tratado como uma String inteira)
@@ -112,15 +100,15 @@ public class Gerenciador {
 //                            campos[6], campos[7], "empresa", "setor", campos[8]);
                     cabecalho = false;
                 } else {
-                    String timestamp = campos[0].replaceAll("\"", "");
-                    String codigoMaquina = campos[1].replaceAll("\"", "");
-                    Double cpu = Double.parseDouble(campos[2]);
-                    Double ramTotal = Double.parseDouble(campos[3]);
-                    Double ramUsada = Double.parseDouble(campos[4]);
-                    Double discoTotal = Double.parseDouble(campos[5]);
-                    Double discoUsado = Double.parseDouble(campos[6]);
-                    Integer numProcessos = Integer.parseInt(campos[7]);
-                    String top5Processos = campos[8];
+                    String timestamp = (!campos[0].isEmpty()) ? campos[0].replaceAll("\"", ""): "N/A";
+                    String codigoMaquina = (!campos[1].isEmpty()) ? campos[1].replaceAll("\"", "") : "N/A";
+                    Double cpu = (!campos[2].isEmpty()) ? Double.parseDouble(campos[2]) : null;
+                    Double ramTotal = (!campos[3].isEmpty()) ? Double.parseDouble(campos[3]) : null;
+                    Double ramUsada = (!campos[4].isEmpty()) ? Double.parseDouble(campos[4]) : null;
+                    Double discoTotal = (!campos[5].isEmpty()) ? Double.parseDouble(campos[5]) : null;
+                    Double discoUsado = (!campos[6].isEmpty()) ? Double.parseDouble(campos[6]) : null;
+                    Integer numProcessos = (!campos[7].isEmpty()) ? Integer.parseInt(campos[7]) : null;
+                    String top5Processos = (!campos[8].isEmpty()) ? campos[8] : "N/A";
 
                     String nomeEmpresa = "";
                     String nomeSetor = "";
@@ -178,7 +166,7 @@ public class Gerenciador {
                 System.exit(1);
             }
         }
-        return listaCaptura;
+        return tratarDados(listaCaptura);
     }
 
     public static void exibeListaCapturas(List<Captura> lista) {
@@ -255,4 +243,5 @@ public class Gerenciador {
             System.exit(1);
         }
     }
+
 }
