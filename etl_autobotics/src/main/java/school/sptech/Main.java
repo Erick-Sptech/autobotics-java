@@ -3,7 +3,15 @@ import java.util.*;
 
 public class Main {
     public static void main(String[] args) {
-        List<Captura> lista = Gerenciador.leCsv("java-etl-raw-sptech");
+        String nomeArqLocal = "dados_tratados";
+        String nomeBucketRaw = "java-etl-raw-sptech";
+        String nomeBucketTrusted = "java-etl-trusted-sptech";
+
+        List<Captura> lista = Gerenciador.leCsvBucketRaw(nomeBucketRaw);
+        Gerenciador.criaCsv(lista, nomeArqLocal);
+        Gerenciador.leCsvLocal(nomeArqLocal);
         Gerenciador.exibeListaCapturas(lista);
+        Gerenciador.enviaCsvParaBucketTrusted(nomeArqLocal, nomeBucketTrusted);
+
     }
 }

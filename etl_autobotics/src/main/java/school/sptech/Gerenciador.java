@@ -2,7 +2,6 @@ package school.sptech;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.awt.color.ProfileDataException;
 import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -30,9 +29,9 @@ public class Gerenciador {
         ListObjectsV2Request requisicao = ListObjectsV2Request.builder().bucket(nomeBucket).build();
         ListObjectsV2Response resultado = s3.listObjectsV2(requisicao);
 
-//        for (S3Object objetos : resultado.contents()) {
-//            System.out.println(objetos.key());
-//        }
+        for (S3Object objetos : resultado.contents()) {
+            System.out.println(objetos.key());
+        }
 
         return  resultado.contents().get(resultado.contents().size()-1).key();
     }
@@ -51,10 +50,10 @@ public class Gerenciador {
         return listaNova;
     }
 
-    public static List<Captura> leCsv(String nomeBucket) {
+    public static List<Captura> leCsvBucketRaw(String nomeBucket) {
         String nomeArq = buscarUltimoCsv(nomeBucket);
         String urlBucket = buscarUrlBucket(nomeBucket, "us-east-1");
-        Conecction connection = new Conecction();
+        Connection connection = new Connection();
         JdbcTemplate con = new JdbcTemplate(connection.getDataSource());
         List<Captura> listaCaptura = new ArrayList<>();
         Captura captura;
@@ -169,6 +168,84 @@ public class Gerenciador {
         return tratarDados(listaCaptura);
     }
 
+    public static List<Captura> leCsvLocal(String nomeArq) {
+        FileReader arq = null;
+        Scanner entrada = null;
+        Boolean erroGravar = false;
+        nomeArq += ".csv";
+        List<Captura> listaCaptura = new ArrayList<>();
+        Captura captura;
+
+        try {
+            System.out.println("Lendo CSV local...");
+            arq = new FileReader(nomeArq);  // Abre o arquivo para leitura
+            // Instancia a classe Scanner e especifica que deve usar delimitador ; ou \n
+            entrada = new Scanner(arq).useDelimiter(";|\\n");
+        }
+        catch (FileNotFoundException erro) {
+            System.out.println("Arquivo inexistente!");
+            System.exit(1);
+        }
+        try {
+            Boolean cabecalho = true;
+            while (entrada.hasNextLine()) {
+                // le a linha inteira do csv
+                String linha = entrada.nextLine();
+                System.out.println(linha);
+                // divide essa linha em vários campos usando a virgula
+                // campos: 0 - timestamp, 1 - cpu, 2 - ramTotal, 3 - ramUsada, 4 - discoTotal, 5 - discoUsado
+                // 6 - numProcessos, 7 - codigoMaquina, 8 - top5Processos (sendo tratado como uma String inteira)
+
+                String[] campos = linha.split(";", 11);
+
+                if (cabecalho) {
+
+                    for (int i = 0; i < campos.length; i++) {
+                        campos[i] = campos[i].replaceAll("[^a-zA-Z0-9]", "");
+                    }
+    //                    System.out.printf("%-25s %-10s %-10s %-10s %-10s %-10s %-15s %-15s %-20s %-20s %-10s\n",
+    //                            campos[0], campos[1], campos[2], campos[3], campos[4], campos[5],
+    //                            campos[6], campos[7], "empresa", "setor", campos[8]);
+                    cabecalho = false;
+                } else {
+                    String timestamp = (!campos[0].isEmpty()) ? campos[0].replaceAll("\"", ""): "N/A";
+                    Double cpu = (!campos[1].isEmpty()) ? Double.parseDouble(campos[1]) : null;
+                    Double ramTotal = (!campos[2].isEmpty()) ? Double.parseDouble(campos[2]) : null;
+                    Double ramUsada = (!campos[3].isEmpty()) ? Double.parseDouble(campos[3]) : null;
+                    Double discoTotal = (!campos[4].isEmpty()) ? Double.parseDouble(campos[4]) : null;
+                    Double discoUsado = (!campos[5].isEmpty()) ? Double.parseDouble(campos[5]) : null;
+                    Integer numProcessos = (!campos[6].isEmpty()) ? Integer.parseInt(campos[6]) : null;
+                    String codigoMaquina = (!campos[7].isEmpty()) ? campos[7].replaceAll("\"", "") : "N/A";
+                    String nomeEmpresa = (!campos[8].isEmpty()) ? campos[8].replaceAll("\"", "") : "N/A";;
+                    String nomeSetor = (!campos[9].isEmpty()) ? campos[9].replaceAll("\"", "") : "N/A";;
+                    String top5Processos = (!campos[10].isEmpty()) ? campos[10] : "N/A";
+
+
+                    captura = new Captura(timestamp, cpu, ramTotal, ramUsada, discoTotal, discoUsado, numProcessos, codigoMaquina, nomeEmpresa, nomeSetor, top5Processos);
+                    listaCaptura.add(captura);
+
+    //                    System.out.printf(
+    //                            "%-25s %-10.2f %-10.2f %-10.2f %-10.2f %-10.2f %-15d %-15s %-20s %-20s %-10s\n",
+    //                            timestamp, cpu, ramTotal, ramUsada, discoTotal, discoUsado, numProcessos,
+    //                            codigoMaquina, nomeEmpresa, nomeSetor, top5Processos
+    //                    );
+                }
+            }
+        }
+        catch (NoSuchElementException erro) {
+            System.out.println("Arquivo com problemas!");
+            erro.printStackTrace();
+            erroGravar = true;
+        }
+        catch (IllegalStateException erro) {
+            System.out.println("Erro na leitura do arquivo!");
+            erro.printStackTrace();
+            erroGravar = true;
+        }
+
+        return listaCaptura;
+    }
+
     public static void exibeListaCapturas(List<Captura> lista) {
         System.out.printf("%-25s %-10s %-10s %-10s %-10s %-10s %-15s %-15s %-20s %-20s %-10s\n",
                 "timestamp", "cpu", "ramTotal", "ramUsada", "discoTotal", "discoUsado",
@@ -196,9 +273,10 @@ public class Gerenciador {
             System.exit(1);
         }
         try {
-            saida.append("timestamp;cpu;ramTotal;ramUsada;discoTotal;discoUsado;numProcessos;codigoMaquina;empresa;setor;top5Processos");
+            System.out.println("Criando csv '" + nomeArq + "'...");
+            saida.append("timestamp;cpu;ramTotal;ramUsada;discoTotal;discoUsado;numProcessos;codigoMaquina;empresa;setor;top5Processos\n");
             for (Captura c : lista) {
-                saida.write(String.format("%s %f %f %f %f %f %d %s %s %s %s\n",
+                saida.write(String.format(Locale.US,"%s;%f;%f;%f;%f;%f;%d;%s;%s;%s;%s\n",
                         c.getTimestamp(), c.getCpu(), c.getRamTotal(), c.getRamUsada(), c.getDiscoTotal(), c.getDiscoUsado(), c.getNumProcessos(),
                         c.getCodigoMaquina(), c.getEmpresa(), c.getSetor(), c.getTop5Processos()));
             }
@@ -221,10 +299,148 @@ public class Gerenciador {
             }
         }
     }
-    public static void enviaCsvParaBucket(String nomeArq, String nomeBucket){
-        nomeArq += ".csv";
-        System.out.println("Enviando '" + nomeArq + "' para o Bucket '" + nomeBucket + "'...");
+
+    // TRUSTED
+
+    public static List<Captura> leCsvBucketTrusted(String nomeBucket) {
+        String nomeArq = "main.csv";
+        String urlBucket = buscarUrlBucket(nomeBucket, "us-east-1");
+        Connection connection = new Connection();
+        JdbcTemplate con = new JdbcTemplate(connection.getDataSource());
+        List<Captura> listaCaptura = new ArrayList<>();
+        Captura captura;
+
+        InputStream arq = null;
+        Scanner entrada = null;
+        Boolean erroGravar = false;
+
         try {
+            System.out.println("Link do csv: " + urlBucket+"/"+nomeArq);
+            // cria um objeto URL do CSV no Bucket
+            URL url = new URL(urlBucket+"/"+nomeArq);
+            // openStream faz requisicao HTTPS e retorna um InputStream
+            arq = url.openStream();
+
+            entrada = new Scanner(arq).useDelimiter(",|\\n");
+        }
+        catch (IOException erro) {
+            System.out.println("Erro na URL Bucket");
+            erro.printStackTrace();
+            System.exit(1);
+        }
+
+        try {
+            Boolean cabecalho = true;
+            while (entrada.hasNextLine()) {
+                // le a linha inteira do csv
+                String linha = entrada.nextLine();
+                // divide essa linha em vários campos usando a virgula
+                // campos: 0 - timestamp, 1 - cpu, 2 - ramTotal, 3 - ramUsada, 4 - discoTotal, 5 - discoUsado
+                // 6 - numProcessos, 7 - codigoMaquina, 8 - top5Processos (sendo tratado como uma String inteira)
+
+                String[] campos = linha.split(";", 11);
+
+                if (cabecalho) {
+
+                    for (int i = 0; i < campos.length; i++) {
+                        campos[i] = campos[i].replaceAll("[^a-zA-Z0-9]", "");
+                    }
+//                    System.out.printf("%-25s %-10s %-10s %-10s %-10s %-10s %-15s %-15s %-20s %-20s %-10s\n",
+//                            campos[0], campos[1], campos[2], campos[3], campos[4], campos[5],
+//                            campos[6], campos[7], "empresa", "setor", campos[8]);
+                    cabecalho = false;
+                }
+                else {
+                    String timestamp = (!campos[0].isEmpty()) ? campos[0].replaceAll("\"", "") : "N/A";
+                    Double cpu = (!campos[1].isEmpty()) ? Double.parseDouble(campos[1]) : null;
+                    Double ramTotal = (!campos[2].isEmpty()) ? Double.parseDouble(campos[2]) : null;
+                    Double ramUsada = (!campos[3].isEmpty()) ? Double.parseDouble(campos[3]) : null;
+                    Double discoTotal = (!campos[4].isEmpty()) ? Double.parseDouble(campos[4]) : null;
+                    Double discoUsado = (!campos[5].isEmpty()) ? Double.parseDouble(campos[5]) : null;
+                    Integer numProcessos = (!campos[6].isEmpty()) ? Integer.parseInt(campos[6]) : null;
+                    String codigoMaquina = (!campos[7].isEmpty()) ? campos[7].replaceAll("\"", "") : "N/A";
+                    String nomeEmpresa = (!campos[8].isEmpty()) ? campos[8].replaceAll("\"", "") : "N/A";
+                    ;
+                    String nomeSetor = (!campos[9].isEmpty()) ? campos[9].replaceAll("\"", "") : "N/A";
+                    ;
+                    String top5Processos = (!campos[10].isEmpty()) ? campos[10] : "N/A";
+
+//
+                captura = new Captura(timestamp, cpu, ramTotal, ramUsada, discoTotal, discoUsado, numProcessos, codigoMaquina, nomeEmpresa, nomeSetor, top5Processos);
+                listaCaptura.add(captura);
+
+//                    System.out.printf(
+//                            "%-25s %-10.2f %-10.2f %-10.2f %-10.2f %-10.2f %-15d %-15s %-20s %-20s %-10s\n",
+//                            timestamp, cpu, ramTotal, ramUsada, discoTotal, discoUsado, numProcessos,
+//                            codigoMaquina, nomeEmpresa, nomeSetor, top5Processos
+//                    );
+                }
+            }
+        }
+        catch (NoSuchElementException erro) {
+            System.out.println("Arquivo com problemas!");
+            erro.printStackTrace();
+            erroGravar = true;
+        }
+        catch (IllegalStateException erro) {
+            System.out.println("Erro na leitura do arquivo!");
+            erro.printStackTrace();
+            erroGravar = true;
+        }
+        finally {
+            try {
+                entrada.close();
+                arq.close();
+            }
+            catch (IOException erro) {
+                System.out.println("Erro ao fechar o arquivo");
+                erroGravar = true;
+            }
+            if (erroGravar) {
+                System.exit(1);
+            }
+        }
+        return listaCaptura;
+    }
+
+    public static void deletarCsvMain() throws AwsServiceException {
+        System.out.println("Excluindo o main.csv anterior(Bucket S3)...");
+        ProfileCredentialsProvider credenciais = ProfileCredentialsProvider.create();
+        credenciais.resolveCredentials();
+
+        // cria um cliente S3 que sera usado para fazer as acoes no bucket
+        S3Client s3 = S3Client.builder().region(Region.US_EAST_1).credentialsProvider(credenciais).build();
+
+        DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                .bucket("java-etl-trusted-sptech")
+                .key("main.csv")
+                .build();
+
+        s3.deleteObject(deleteObjectRequest);
+        System.out.println("Excluido com sucesso.");
+    }
+
+    public static void enviaCsvParaBucketTrusted(String nomeArqLocal, String nomeBucket){
+        System.out.println("Enviando '" + nomeArqLocal + "' para o main.csv do Bucket '" + nomeBucket + "'...");
+
+        List<Captura> listaCapturaLocal = new ArrayList<>(leCsvLocal(nomeArqLocal));
+        System.out.println("Csv local ...");
+        exibeListaCapturas(listaCapturaLocal);
+
+        List<Captura> listaCapturaBucket = new ArrayList<>(leCsvBucketTrusted(nomeBucket));
+        System.out.println("Csv que está no Trusted ...");
+        exibeListaCapturas(listaCapturaBucket);
+
+        List<Captura> listaFinal = new ArrayList<>();
+        listaFinal.addAll(listaCapturaBucket);
+        listaFinal.addAll(listaCapturaLocal);
+
+        System.out.println("Csv final (Trusted + Local)");
+        exibeListaCapturas(listaFinal);
+        criaCsv(listaFinal, "mainEnviar");
+
+        try {
+            deletarCsvMain();
             // puxa as credencias setadas no 'aws configure'
             ProfileCredentialsProvider credenciais = ProfileCredentialsProvider.create();
             credenciais.resolveCredentials();
@@ -232,9 +448,11 @@ public class Gerenciador {
             // cria um cliente S3 que sera usado para fazer as acoes no bucket
             S3Client s3 = S3Client.builder().region(Region.US_EAST_1).credentialsProvider(credenciais).build();
 
-            // cria uma requisicao para adicionar um novo objeto num Bucket S3
-            PutObjectRequest requisicao = PutObjectRequest.builder().bucket(nomeBucket).key("trusted_dados_hardware.csv").build();
-            s3.putObject(requisicao, Paths.get(nomeArq));
+            // cria um objeto requisicao para adicionar um novo objeto num Bucket S3
+            PutObjectRequest requisicao = PutObjectRequest.builder().bucket(nomeBucket).key("main.csv").build();
+
+            // usa esse objeto no cliente s3
+            s3.putObject(requisicao, Paths.get("mainEnviar.csv"));
             System.out.println("Upload concluído.");
         }
         catch (AwsServiceException erro) {
@@ -243,5 +461,4 @@ public class Gerenciador {
             System.exit(1);
         }
     }
-
 }

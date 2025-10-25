@@ -2,10 +2,10 @@ package school.sptech;
 
 import org.apache.commons.dbcp2.BasicDataSource;
 
-public class Conecction {
+public class Connection {
     private BasicDataSource dataSource;
 
-    public Conecction(){
+    public Connection(){
         dataSource = new BasicDataSource();
 
         dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
