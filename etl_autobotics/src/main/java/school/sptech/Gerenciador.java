@@ -412,7 +412,7 @@ public class Gerenciador {
         S3Client s3 = S3Client.builder().region(Region.US_EAST_1).credentialsProvider(credenciais).build();
 
         DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
-                .bucket("java-etl-trusted-sptech")
+                .bucket("trusted-1d4a3f130793f4b0dfc576791dd86b32")
                 .key("main.csv")
                 .build();
 
