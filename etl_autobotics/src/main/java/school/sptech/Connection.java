@@ -9,7 +9,7 @@ public class Connection {
         dataSource = new BasicDataSource();
 
         dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
-        dataSource.setUrl("jdbc:mysql://44.195.223.212:3306/autobotics");
+        dataSource.setUrl("jdbc:mysql://44.221.108.105:3306/autobotics");
         dataSource.setUsername("agente");
         dataSource.setPassword("sptech");
 

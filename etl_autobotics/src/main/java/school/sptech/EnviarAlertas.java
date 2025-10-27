@@ -34,7 +34,7 @@ public class EnviarAlertas {
             // Corpo da requisição
             String jsonInputString = String.format(
                     "{ \"serviceDeskId\": \"%s\", \"requestTypeId\": \"%s\", " +
-                            "\"requestFieldValues\": { \"summary\": \"Alerta crítico - %s em %.2f%%\", " +
+                            "\"requestFieldValues\": { \"summary\": \"Alerta - %s em %.2f%%\", " +
                             "\"description\": \"O componente %s atingiu %.2f%% de uso.\" } }",
                     SERVICE_DESK_ID, REQUEST_TYPE_ID, componente, valor, componente, valor
             );
