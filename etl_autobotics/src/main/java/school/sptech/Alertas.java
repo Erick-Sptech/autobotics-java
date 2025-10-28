@@ -23,32 +23,44 @@ public class Alertas {
             if (parametros == null) continue;
 
             for (Parametro p : parametros) {
-                Double valor = null;
-                switch (p.getComponente().toLowerCase()) {
-                    case "cpu": valor = c.getCpu(); break;
-                    case "ram": valor = c.getRamUsada(); break;
-                    case "disco": valor = c.getDiscoUsado(); break;
-                }
+                Double valor = switch (p.getComponente().toLowerCase()) {
+                    case "cpu" -> c.getCpu();
+                    case "ram" -> c.getRamUsada();
+                    case "disco" -> c.getDiscoUsado();
+                    default -> null;
+                };
+
                 if (valor == null) continue;
 
+                // Verifica se valor está fora dos limites
                 if (valor < p.getValorMin() || valor > p.getValorMax()) {
-                    if (p.getCriticidade() >= 1) { // médio ou crítico (1 ou 2)
+
+                    int criticidade = p.getCriticidade();
+
+                    // Envia apenas se for médio (1) ou crítico (2)
+                    if (criticidade == 1 || criticidade == 2) {
+
+                        String tipoAlerta = (criticidade == 1) ? "médio" : "crítico";
+
                         String mensagem = String.format(
-                                "Alerta %s - %s fora do limite! Valor: %.2f, Min: %.2f, Max: %.2f",
-                                c.getCodigoMaquina(), p.getComponente(), valor, p.getValorMin(), p.getValorMax()
+                                "⚠️ Alerta %s - %s fora do limite!\n" +
+                                        "Setor: %s\nMáquina: %s\nValor atual: %.2f\nMínimo: %.2f | Máximo: %.2f",
+                                tipoAlerta.toUpperCase(), p.getComponente(), setor,
+                                c.getCodigoMaquina(), valor, p.getValorMin(), p.getValorMax()
                         );
 
-                        // 1️⃣ Envia alerta pro Jira
-                        EnviarAlertas.criarTicket(p.getComponente(), valor);
+                        System.out.println(mensagem);
 
-                        // 2️⃣ Busca IDs para inserir no banco
-                        int idComponente = buscarIdComponente(p.getComponente(), c.getSetor());
+                        // 📨 Envia alerta ao Jira com criticidade e mensagem detalhada
+                        EnviarAlertas.criarTicket(p.getComponente(), valor, tipoAlerta, mensagem);
+
+                        // 🔍 Busca IDs e insere no banco
+                        int idComponente = buscarIdComponente(p.getComponente(), setor);
                         if (idComponente == -1) continue;
 
                         int idControlador = buscarIdControlador(c.getCodigoMaquina(), idComponente);
                         if (idControlador == -1) continue;
 
-                        // 3️⃣ Insere no banco
                         String sql = "INSERT INTO alerta (timestamp, fk_controlador, fk_componente, valor) " +
                                 "VALUES (NOW(), ?, ?, ?)";
                         jdbc.update(sql, idControlador, idComponente, valor);

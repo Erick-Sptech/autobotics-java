@@ -12,46 +12,49 @@ public class EnviarAlertas {
 
     private static final String JIRA_URL = "https://autoboticssptech.atlassian.net/rest/servicedeskapi/request";
     private static final String EMAIL = "autobotics.sptech@gmail.com";
-    private static final String API_TOKEN = "";
+    private static final String API_TOKEN = ""; // coloque seu token aqui
 
-    // IDs válidos obtidos da API
-    private static final String SERVICE_DESK_ID = "1";      // Alertas
-    private static final String REQUEST_TYPE_ID = "6";      // Report a bug
+    private static final String SERVICE_DESK_ID = "1"; // Alertas
+    private static final String REQUEST_TYPE_ID = "6"; // Report a bug
 
-    public static void criarTicket(String componente, double valor) {
+    public static void criarTicket(String componente, double valor, String tipoAlerta, String descricaoDetalhada) {
         try {
             URL url = new URL(JIRA_URL);
             HttpURLConnection con = (HttpURLConnection) url.openConnection();
             con.setRequestMethod("POST");
-            con.setRequestProperty("Content-Type", "application/json");
+            con.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            con.setDoOutput(true);
 
-            // Autenticação básica com token do Jira
+            // Autenticação básica
             String auth = EMAIL + ":" + API_TOKEN;
             String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
             con.setRequestProperty("Authorization", "Basic " + encodedAuth);
-            con.setDoOutput(true);
 
-            // Corpo da requisição
+            // Emoji no título
+            String emoji = tipoAlerta.equalsIgnoreCase("crítico") ? "🔴" : "🟠";
+            String titulo = String.format("%s Alerta %s - %s (%.2f%%)", emoji, tipoAlerta.toUpperCase(), componente, valor);
+
+            // Monta o JSON com escape seguro
             String jsonInputString = String.format(
                     "{ \"serviceDeskId\": \"%s\", \"requestTypeId\": \"%s\", " +
-                            "\"requestFieldValues\": { \"summary\": \"Alerta - %s em %.2f%%\", " +
-                            "\"description\": \"O componente %s atingiu %.2f%% de uso.\" } }",
-                    SERVICE_DESK_ID, REQUEST_TYPE_ID, componente, valor, componente, valor
+                            "\"requestFieldValues\": { \"summary\": \"%s\", \"description\": \"%s\" } }",
+                    SERVICE_DESK_ID, REQUEST_TYPE_ID,
+                    escapeJson(titulo),
+                    escapeJson(descricaoDetalhada)
             );
 
+            // Envia
             try (OutputStream os = con.getOutputStream()) {
                 byte[] input = jsonInputString.getBytes(StandardCharsets.UTF_8);
                 os.write(input, 0, input.length);
             }
 
-            // Ler a resposta
+            // Lê resposta
             int code = con.getResponseCode();
-            BufferedReader br;
-            if (code >= 200 && code < 300) {
-                br = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
-            } else {
-                br = new BufferedReader(new InputStreamReader(con.getErrorStream(), StandardCharsets.UTF_8));
-            }
+            BufferedReader br = new BufferedReader(new InputStreamReader(
+                    (code >= 200 && code < 300) ? con.getInputStream() : con.getErrorStream(),
+                    StandardCharsets.UTF_8
+            ));
 
             StringBuilder response = new StringBuilder();
             String responseLine;
@@ -59,11 +62,20 @@ public class EnviarAlertas {
                 response.append(responseLine.trim());
             }
 
-            System.out.println("Código HTTP: " + code);
-            System.out.println("Resposta do Jira: " + response.toString());
+            System.out.printf("📡 Jira retorno (%d): %s%n", code, response);
 
         } catch (Exception e) {
+            System.err.println("❌ Erro ao enviar alerta ao Jira:");
             e.printStackTrace();
         }
+    }
+
+    // Escapa aspas, barras e quebras de linha
+    private static String escapeJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
     }
 }
