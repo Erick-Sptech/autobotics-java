@@ -33,7 +33,7 @@ public class Alertas {
                 if (valor == null) continue;
 
                 // Verifica se valor está fora dos limites
-                if (valor < p.getValorMin() || valor > p.getValorMax()) {
+                if (valor > p.getValorMin()) {
 
                     int criticidade = p.getCriticidade();
 
@@ -44,9 +44,9 @@ public class Alertas {
 
                         String mensagem = String.format(
                                 "⚠️ Alerta %s - %s fora do limite!\n" +
-                                        "Setor: %s\nMáquina: %s\nValor atual: %.2f\nMínimo: %.2f | Máximo: %.2f",
+                                        "Setor: %s\nMáquina: %s\nValor atual: %.2f\nMínimo: %.2f",
                                 tipoAlerta.toUpperCase(), p.getComponente(), setor,
-                                c.getCodigoMaquina(), valor, p.getValorMin(), p.getValorMax()
+                                c.getCodigoMaquina(), valor, p.getValorMin()
                         );
 
                         System.out.println(mensagem);
@@ -61,9 +61,9 @@ public class Alertas {
                         int idControlador = buscarIdControlador(c.getCodigoMaquina(), idComponente);
                         if (idControlador == -1) continue;
 
-                        String sql = "INSERT INTO alerta (timestamp, fk_controlador, fk_componente, valor) " +
-                                "VALUES (NOW(), ?, ?, ?)";
-                        jdbc.update(sql, idControlador, idComponente, valor);
+                        String sql = "INSERT INTO alerta (timestamp, fk_controlador, fk_componente, valor, criticidade) " +
+                                "VALUES (NOW(), ?, ?, ?, ?)";
+                        jdbc.update(sql, idControlador, idComponente, valor, criticidade);
                     }
                 }
             }

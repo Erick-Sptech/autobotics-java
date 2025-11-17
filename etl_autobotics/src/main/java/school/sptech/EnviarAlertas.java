@@ -12,7 +12,7 @@ public class EnviarAlertas {
 
     private static final String JIRA_URL = "https://autoboticssptech.atlassian.net/rest/servicedeskapi/request";
     private static final String EMAIL = "autobotics.sptech@gmail.com";
-    private static final String API_TOKEN = ""; // coloque seu token aqui
+    private static final String API_TOKEN =""; // coloque seu token aqui
 
     private static final String SERVICE_DESK_ID = "1"; // Alertas
     private static final String REQUEST_TYPE_ID = "6"; // Report a bug
@@ -62,10 +62,10 @@ public class EnviarAlertas {
                 response.append(responseLine.trim());
             }
 
-            System.out.printf("📡 Jira retorno (%d): %s%n", code, response);
+            System.out.printf("Jira retorno (%d): %s%n", code, response);
 
         } catch (Exception e) {
-            System.err.println("❌ Erro ao enviar alerta ao Jira:");
+            System.err.println("Erro ao enviar alerta ao Jira:");
             e.printStackTrace();
         }
     }
