@@ -1,7 +1,7 @@
 package school.sptech;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 
 public class Alertas {
@@ -17,12 +17,16 @@ public class Alertas {
     }
 
     public void processarCapturas(List<Captura> capturas) {
+        Integer index = 0;
         for (Captura c : capturas) {
+            index++;
             String setor = c.getSetor();
             List<Parametro> parametros = parametrosPorSetor.get(setor);
+            HashMap<Integer, Integer> jaTemAlerta = new HashMap<Integer, Integer>();
             if (parametros == null) continue;
 
             for (Parametro p : parametros) {
+
                 Double valor = switch (p.getComponente().toLowerCase()) {
                     case "cpu" -> c.getCpu();
                     case "ram" -> c.getRamUsada();
@@ -32,38 +36,66 @@ public class Alertas {
 
                 if (valor == null) continue;
 
-                // Verifica se valor está fora dos limites
                 if (valor > p.getValorMin()) {
 
                     int criticidade = p.getCriticidade();
 
-                    // Envia apenas se for médio (1) ou crítico (2)
                     if (criticidade == 1 || criticidade == 2) {
+                        if(criticidade == 2){
+                            jaTemAlerta.put(index, criticidade);
 
-                        String tipoAlerta = (criticidade == 1) ? "médio" : "crítico";
+                            String tipoAlerta = (criticidade == 1) ? "médio" : "crítico";
 
-                        String mensagem = String.format(
-                                "⚠️ Alerta %s - %s fora do limite!\n" +
-                                        "Setor: %s\nMáquina: %s\nValor atual: %.2f\nMínimo: %.2f",
-                                tipoAlerta.toUpperCase(), p.getComponente(), setor,
-                                c.getCodigoMaquina(), valor, p.getValorMin()
-                        );
+                            String mensagem = String.format(
+                                    "⚠️ Alerta %s - %s fora do limite!\n" +
+                                            "Setor: %s\nMáquina: %s\nValor atual: %.2f\nMínimo: %.2f",
+                                    tipoAlerta.toUpperCase(), p.getComponente(), setor,
+                                    c.getCodigoMaquina(), valor, p.getValorMin()
+                            );
 
-                        System.out.println(mensagem);
+                            System.out.println(mensagem);
 
-                        // 📨 Envia alerta ao Jira com criticidade e mensagem detalhada
-                        EnviarAlertas.criarTicket(p.getComponente(), valor, tipoAlerta, mensagem);
+                            // alerta
+                            EnviarAlertas.criarTicket(p.getComponente(), valor, tipoAlerta, mensagem);
 
-                        // 🔍 Busca IDs e insere no banco
-                        int idComponente = buscarIdComponente(p.getComponente(), setor);
-                        if (idComponente == -1) continue;
+                            int idComponente = buscarIdComponente(p.getComponente(), setor);
+                            if (idComponente == -1) continue;
 
-                        int idControlador = buscarIdControlador(c.getCodigoMaquina(), idComponente);
-                        if (idControlador == -1) continue;
+                            int idControlador = buscarIdControlador(c.getCodigoMaquina(), idComponente);
+                            if (idControlador == -1) continue;
 
-                        String sql = "INSERT INTO alerta (timestamp, fk_controlador, fk_componente, valor, criticidade) " +
-                                "VALUES (NOW(), ?, ?, ?, ?)";
-                        jdbc.update(sql, idControlador, idComponente, valor, criticidade);
+                            String sql = "INSERT INTO alerta (timestamp, fk_controlador, fk_componente, valor, criticidade) " +
+                                    "VALUES (NOW(), ?, ?, ?, ?)";
+                            jdbc.update(sql, idControlador, idComponente, valor, criticidade);
+                        }
+
+                        if (jaTemAlerta.get(index) != null){
+
+                        } else {
+                            String tipoAlerta = (criticidade == 1) ? "médio" : "crítico";
+
+                            String mensagem = String.format(
+                                    "⚠️ Alerta %s - %s fora do limite!\n" +
+                                            "Setor: %s\nMáquina: %s\nValor atual: %.2f\nMínimo: %.2f",
+                                    tipoAlerta.toUpperCase(), p.getComponente(), setor,
+                                    c.getCodigoMaquina(), valor, p.getValorMin()
+                            );
+
+                            System.out.println(mensagem);
+
+                            // alerta
+                            EnviarAlertas.criarTicket(p.getComponente(), valor, tipoAlerta, mensagem);
+
+                            int idComponente = buscarIdComponente(p.getComponente(), setor);
+                            if (idComponente == -1) continue;
+
+                            int idControlador = buscarIdControlador(c.getCodigoMaquina(), idComponente);
+                            if (idControlador == -1) continue;
+
+                            String sql = "INSERT INTO alerta (timestamp, fk_controlador, fk_componente, valor, criticidade) " +
+                                    "VALUES (NOW(), ?, ?, ?, ?)";
+                            jdbc.update(sql, idControlador, idComponente, valor, criticidade);
+                        }
                     }
                 }
             }

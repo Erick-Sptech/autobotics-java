@@ -18,7 +18,8 @@ public class ParametroService {
                 FROM parametro p
                 JOIN componente c ON c.id_componente = p.fk_componente
                 JOIN setor s ON s.id_setor = c.fk_setor
-                WHERE p.criticidade IN (1, 2);
+                WHERE p.criticidade IN (1, 2)
+                order by p.criticidade desc;
             """;
 
         Map<String, List<Parametro>> mapa = new HashMap<>();
