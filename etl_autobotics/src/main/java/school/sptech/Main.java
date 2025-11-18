@@ -26,14 +26,16 @@ public class Main {
         ParametroService parametroService = new ParametroService(jdbc);
         Map<String, List<Parametro>> parametrosPorSetor = parametroService.buscarParametrosPorSetor();
 
-        // Criar instância do alerta
+        // Criar instância do serviço de envio de alertas
         EnviarAlertas enviar = new EnviarAlertas();
+
+        // Criar classe responsável por processar capturas e gerar alertas
         Alertas alertas = new Alertas(parametrosPorSetor, enviar, jdbc);
 
-        // Processar as capturas e enviar alertas + registrar no banco
+        // Processar capturas e enviar alertas
         alertas.processarCapturas(lista);
 
-        // Enviar CSV final pro bucket TRUSTED
+        // Enviar CSV final para o bucket TRUSTED
         Gerenciador.enviaCsvParaBucketTrusted(nomeArqLocal, nomeBucketTrusted);
 
         System.out.println("Fluxo completo finalizado com sucesso ✅");
