@@ -12,7 +12,14 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
                 String key = record.getS3().getObject().getKey();
                 context.getLogger().log("Novo objeto " + bucket + "/" + key);
             });
-            return "Evento.";
+
+            try{
+                Main.rodarTratamento();
+                return "o tratamento acabou.";
+            } catch (Exception e) {
+                context.getLogger().log("erro na hora de tratar: " + e.getMessage());
+                return "tratamento deu errado";
+            }
         }
     }
 

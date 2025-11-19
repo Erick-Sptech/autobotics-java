@@ -5,7 +5,12 @@ import java.util.*;
 
 public class Main {
     public static void main(String[] args) {
-        String nomeArqLocal = "dados_tratados";
+        rodarTratamento();
+    }
+
+    public static void rodarTratamento(){
+        String nomeArqLocal = "/tmp/" + "dados_tratados";
+        //String nomeArqLocal = "dados_tratados";
         String nomeBucketRaw = "raw-1d4a3f130793f4b0dfc576791dd86b32";
         String nomeBucketTrusted = "trusted-1d4a3f130793f4b0dfc576791dd86b32";
 

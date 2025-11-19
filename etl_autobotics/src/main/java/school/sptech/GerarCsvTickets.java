@@ -11,8 +11,8 @@ public class GerarCsvTickets {
 
     public static void gerarCsv(JSONArray abertos, JSONArray resolvidos) {
 
-        String nomeArquivo = "tickets_" +
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmm")) + ".csv";
+        //String nomeArquivo = "tickets_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmm")) + ".csv";
+        String nomeArquivo = "/tmp/tickets_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmm")) + ".csv";
 
         try (FileWriter writer = new FileWriter(nomeArquivo)) {
 

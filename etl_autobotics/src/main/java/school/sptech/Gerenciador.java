@@ -172,7 +172,12 @@ public class Gerenciador {
         FileReader arq = null;
         Scanner entrada = null;
         Boolean erroGravar = false;
-        nomeArq += ".csv";
+        //nomeArq += ".csv";
+        if (!nomeArq.startsWith("/tmp/")) {
+            nomeArq = "/tmp/" + nomeArq + ".csv";
+        } else {
+            nomeArq += ".csv";
+        }
         List<Captura> listaCaptura = new ArrayList<>();
         Captura captura;
 
@@ -262,7 +267,12 @@ public class Gerenciador {
     public static void criaCsv(List<Captura> lista, String nomeArq) {
         OutputStreamWriter saida = null;
         Boolean erroGravar = false;
-        nomeArq += ".csv";
+        //nomeArq += ".csv";
+        if (!nomeArq.startsWith("/tmp/")) {
+            nomeArq = "/tmp/" + nomeArq + ".csv";
+        } else {
+            nomeArq += ".csv";
+        }
 
         try {
             saida = new OutputStreamWriter(new FileOutputStream(nomeArq), StandardCharsets.UTF_8);
@@ -405,11 +415,9 @@ public class Gerenciador {
 
     public static void deletarCsvMain() throws AwsServiceException {
         System.out.println("Excluindo o main.csv anterior(Bucket S3)...");
-        ProfileCredentialsProvider credenciais = ProfileCredentialsProvider.create();
-        credenciais.resolveCredentials();
 
         // cria um cliente S3 que sera usado para fazer as acoes no bucket
-        S3Client s3 = S3Client.builder().region(Region.US_EAST_1).credentialsProvider(credenciais).build();
+        S3Client s3 = S3Client.builder().region(Region.US_EAST_1).build();
 
         DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
                 .bucket("trusted-1d4a3f130793f4b0dfc576791dd86b32")
@@ -452,7 +460,8 @@ public class Gerenciador {
             PutObjectRequest requisicao = PutObjectRequest.builder().bucket(nomeBucket).key("main.csv").build();
 
             // usa esse objeto no cliente s3
-            s3.putObject(requisicao, Paths.get("mainEnviar.csv"));
+            //s3.putObject(requisicao, Paths.get("mainEnviar.csv"));
+            s3.putObject(requisicao, Paths.get("/tmp/mainEnviar.csv"));
             System.out.println("Upload concluído.");
         }
         catch (AwsServiceException erro) {
