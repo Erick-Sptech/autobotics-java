@@ -7,6 +7,9 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.regions.Region;
@@ -33,6 +36,12 @@ public class Gerenciador {
             System.out.println(objetos.key());
         }
 
+        if (resultado.contents().isEmpty()) {
+            System.out.println("Nenhum CSV foi encontrado...");
+            return "empty";
+        }
+
+        // pega o ultimo CSV (ultimo item da lista resultado)
         return  resultado.contents().get(resultado.contents().size()-1).key();
     }
 
@@ -172,7 +181,7 @@ public class Gerenciador {
         FileReader arq = null;
         Scanner entrada = null;
         Boolean erroGravar = false;
-        //nomeArq += ".csv";
+        // nomeArq += ".csv";
         if (!nomeArq.startsWith("/tmp/")) {
             nomeArq = "/tmp/" + nomeArq + ".csv";
         } else {
@@ -267,7 +276,7 @@ public class Gerenciador {
     public static void criaCsv(List<Captura> lista, String nomeArq) {
         OutputStreamWriter saida = null;
         Boolean erroGravar = false;
-        //nomeArq += ".csv";
+        // nomeArq += ".csv";
         if (!nomeArq.startsWith("/tmp/")) {
             nomeArq = "/tmp/" + nomeArq + ".csv";
         } else {
@@ -313,7 +322,13 @@ public class Gerenciador {
     // TRUSTED
 
     public static List<Captura> leCsvBucketTrusted(String nomeBucket) {
-        String nomeArq = "main.csv";
+        String nomeArq = buscarUltimoCsv(nomeBucket);
+
+        // caso não haja nenhum arquivo no trusted ainda
+        if (nomeArq.equals("empty")) {
+            return new ArrayList<>();
+        }
+
         String urlBucket = buscarUrlBucket(nomeBucket, "us-east-1");
         Connection connection = new Connection();
         JdbcTemplate con = new JdbcTemplate(connection.getDataSource());
@@ -413,6 +428,7 @@ public class Gerenciador {
         return listaCaptura;
     }
 
+    // não apagamos mais arquivos no trusted
     public static void deletarCsvMain() throws AwsServiceException {
         System.out.println("Excluindo o main.csv anterior(Bucket S3)...");
 
@@ -429,7 +445,7 @@ public class Gerenciador {
     }
 
     public static void enviaCsvParaBucketTrusted(String nomeArqLocal, String nomeBucket){
-        System.out.println("Enviando '" + nomeArqLocal + "' para o main.csv do Bucket '" + nomeBucket + "'...");
+        System.out.println("Enviando '" + nomeArqLocal + "' para o Bucket Trusted:'" + nomeBucket + "'...");
 
         List<Captura> listaCapturaLocal = new ArrayList<>(leCsvLocal(nomeArqLocal));
         System.out.println("Csv local ...");
@@ -448,8 +464,15 @@ public class Gerenciador {
         criaCsv(listaFinal, "mainEnviar");
 
         try {
-            deletarCsvMain();
-            // puxa as credencias setadas no 'aws configure'
+            // não está mais apagando do Bucket
+            //deletarCsvMain();
+
+            // cria o nome do arquivo baseado no timestamp atual
+            LocalDateTime timestamp = LocalDateTime.now();
+            DateTimeFormatter formatadorTimestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
+            String nomeArqNovo = timestamp.format(formatadorTimestamp) + ".csv";
+
+            // puxa as credencias setadas local no 'aws configure'
             ProfileCredentialsProvider credenciais = ProfileCredentialsProvider.create();
             credenciais.resolveCredentials();
 
@@ -457,11 +480,11 @@ public class Gerenciador {
             S3Client s3 = S3Client.builder().region(Region.US_EAST_1).credentialsProvider(credenciais).build();
 
             // cria um objeto requisicao para adicionar um novo objeto num Bucket S3
-            PutObjectRequest requisicao = PutObjectRequest.builder().bucket(nomeBucket).key("main.csv").build();
+            PutObjectRequest requisicao = PutObjectRequest.builder().bucket(nomeBucket).key(nomeArqNovo).build();
 
             // usa esse objeto no cliente s3
-            //s3.putObject(requisicao, Paths.get("mainEnviar.csv"));
-            s3.putObject(requisicao, Paths.get("/tmp/mainEnviar.csv"));
+            s3.putObject(requisicao, Paths.get("mainEnviar.csv"));
+//            s3.putObject(requisicao, Paths.get("/tmp/mainEnviar.csv"));
             System.out.println("Upload concluído.");
         }
         catch (AwsServiceException erro) {
