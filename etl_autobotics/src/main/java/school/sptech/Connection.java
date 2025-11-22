@@ -8,8 +8,10 @@ public class Connection {
     public Connection(){
         dataSource = new BasicDataSource();
 
+        String bd = System.getenv("BD_IP");
+
         dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
-        dataSource.setUrl("jdbc:mysql://44.198.97.37:3306/autobotics");
+        dataSource.setUrl("jdbc:mysql://" + bd + ":3306/autobotics");
         dataSource.setUsername("agente");
         dataSource.setPassword("sptech");
 
