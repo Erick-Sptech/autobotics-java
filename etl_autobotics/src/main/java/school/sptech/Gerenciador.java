@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.*;
 
 import java.time.LocalDateTime;
@@ -15,6 +16,12 @@ import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 
 import java.nio.file.Paths;
 
@@ -472,18 +479,16 @@ public class Gerenciador {
             DateTimeFormatter formatadorTimestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
             String nomeArqNovo = timestamp.format(formatadorTimestamp) + ".csv";
 
-            // puxa as credencias setadas local no 'aws configure'
-            ProfileCredentialsProvider credenciais = ProfileCredentialsProvider.create();
-            credenciais.resolveCredentials();
+            // le arquivo local
+            byte[] fileBytes = Files.readAllBytes(Paths.get("/tmp/mainEnviar.csv"));
+            InputStream csvInputStream = new ByteArrayInputStream(fileBytes);
 
-            // cria um cliente S3 que sera usado para fazer as acoes no bucket
-            S3Client s3 = S3Client.builder().region(Region.US_EAST_1).credentialsProvider(credenciais).build();
+            // cria cliente s3 AWS para fazer o upload (tudo usando SDK 1)
+            AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
 
-            // cria um objeto requisicao para adicionar um novo objeto num Bucket S3
-            PutObjectRequest requisicao = PutObjectRequest.builder().bucket(nomeBucket).key(nomeArqNovo).build();
+            // upload
+            s3.putObject(nomeBucket, nomeArqNovo, csvInputStream, null);
 
-            // usa esse objeto no cliente s3
-            s3.putObject(requisicao, Paths.get("mainEnviar.csv"));
 //            s3.putObject(requisicao, Paths.get("/tmp/mainEnviar.csv"));
             System.out.println("Upload concluído.");
         }
@@ -491,6 +496,10 @@ public class Gerenciador {
             System.out.println("Erro ao conectar nos serviços AWS.");
             System.out.println(erro.awsErrorDetails());
             System.exit(1);
+        } catch (IOException e) {
+            System.out.println("Erro ao ler arquivo local.");
+            System.out.println(e.fillInStackTrace());
+            throw new RuntimeException(e);
         }
     }
 }
